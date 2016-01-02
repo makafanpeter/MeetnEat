@@ -2,7 +2,7 @@ from models import Base, User, OAuthMembership, Request,Proposal,MealDate
 from flask import Flask, jsonify, request, url_for, abort, g, redirect,render_template,flash,make_response
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, or_, and_
 
 from oauth import OAuthSignIn
 from flask import session as login_session
@@ -20,17 +20,17 @@ session = DBSession()
 app = Flask(__name__)
 app.config['OAUTH_CREDENTIALS'] = {
     'facebook': {
-        'id': '470154729788964',
-        'secret': '010cc08bd4f51e34f3f3e684fbdea8a7'
-    },
-    'google': {
-        'id': '763910754530-rqig5i0qt95f2832bdkg15m49580rhtl.apps.googleusercontent.com',
-        'secret': 'KA5kZILEXedg8SuQsied7MfW'
-    },
-    'twitter': {
-        'id': '3RzWQclolxWZIMq5LJqzRZPTl',
-        'secret': 'm9TEd58DSEtRrZHpz2EjrV9AhsBRxKMo8m3kuIZj3zLwzwIimt'
-    },
+          'id': '470154729788964',
+          'secret': '010cc08bd4f51e34f3f3e684fbdea8a7'
+      },
+      'google': {
+          'id': '763910754530-rqig5i0qt95f2832bdkg15m49580rhtl.apps.googleusercontent.com',
+          'secret': 'KA5kZILEXedg8SuQsied7MfW'
+      },
+      'twitter': {
+          'id': '3RzWQclolxWZIMq5LJqzRZPTl',
+          'secret': 'm9TEd58DSEtRrZHpz2EjrV9AhsBRxKMo8m3kuIZj3zLwzwIimt'
+      },
 }
 
 
@@ -169,7 +169,8 @@ def get_user(id):
 @app.route('/api/v1/requests', methods=['GET'])
 @auth.login_required
 def get_requests():
-    requests = session.query(Request).all()
+    user = g.user
+    requests = session.query(Request).filter_by(user.id != User.user_id).all()
     return jsonify(requests = [r.serialize for r in requests])
 
 @app.route('/api/v1/requests', methods=['POST'])
@@ -195,9 +196,12 @@ def update_request(id):
 @app.route('/api/v1/requests/<int:id>', methods=['DELETE'])
 @auth.login_required
 def delete_request(id):
+    user = g.user
     r = session.query(Request).filter_by(id = id).first()
     if r is None:
         abort(404)
+    if user.id != r.user_id:
+        abort(403)
     session.delete(r)
     session.commit()
     return  jsonify( { 'result': True } )
@@ -205,7 +209,8 @@ def delete_request(id):
 @app.route('/api/v1/proposals', methods=['GET'])
 @auth.login_required
 def get_proposals():
-    proposals = session.query(Proposal).all()
+    user = g.user
+    proposals = session.query(Proposal).filter(or_(Proposal.user_proposed_to == user.id, Proposal.user_proposed_from == user.id)).all()
     return jsonify(requests = [proposal.serialize for proposal in proposals])
 
 @app.route('/api/v1/proposals', methods=['POST'])
@@ -216,9 +221,12 @@ def new_proposal():
 @app.route('/api/v1/proposals/<int:id>', methods=['GET'])
 @auth.login_required
 def get_proposal(id):
+    user = g.user
     proposal = session.query(Proposal).filter_by(id = id).first()
     if proposal is None:
         abort(404)
+    if proposal.user_proposed_to != user.id and proposal.user_proposed_from != user.id:
+        abort(403)
     return jsonify(proposal.serialize)
 
 @app.route('/api/v1/proposals/<int:id>', methods=['PUT'])
@@ -232,6 +240,8 @@ def delete_proposal(id):
     proposal = session.query(Proposal).filter_by(id = id).first()
     if proposal is None:
         abort(404)
+    if proposal.user_proposed_from != user.id:
+        abort(403)
     session.delete(proposal)
     session.commit()
     return  jsonify( { 'result': True } )
@@ -239,7 +249,8 @@ def delete_proposal(id):
 @app.route('/api/v1/dates', methods=['GET'])
 @auth.login_required
 def get_dates():
-    dates = session.query(Proposal).all()
+    user = g.user
+    dates = session.query(MealDate).filter(or_(MealDate.user_1 == user.id, MealDate.user_2 == user.id)).all()
     return jsonify(dates = [date.serialize for date in dates])
 
 
@@ -251,9 +262,12 @@ def new_date():
 @app.route('/api/v1/dates/<int:id>', methods=['GET'])
 @auth.login_required
 def get_date(id):
+    user = g.user
     date = session.query(MealDate).filter_by(id = id).first()
     if date is None:
         abort(404)
+    if date.user_1 != user.id and date.user_2 != user.id:
+        abort(403)
     return jsonify(date.serialize)
 
 @app.route('/api/v1/dates/<int:id>', methods=['PUT'])
@@ -267,6 +281,8 @@ def delete_date(id):
     date = session.query(MealDate).filter_by(id = id).first()
     if date is None:
         abort(404)
+    if date.user_1 != user.id and date.user_2 != user.id:
+        abort(403)
     session.delete(date)
     session.commit()
     return  jsonify( { 'result': True } )
