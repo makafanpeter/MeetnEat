@@ -1,3 +1,3 @@
 # MeetnEat
-Designing Restful API Final Project -https://www.udacity.com/course/designing-restful-apis--ud388
+Final Project For Designing Restful API  -https://www.udacity.com/course/designing-restful-apis--ud388
 
