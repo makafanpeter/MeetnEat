@@ -335,27 +335,28 @@ def new_date():
         if r.filled:
             return  jsonify( { 'result': False } )
         if not accept_proposal:
+            proposal.filled = True
+            r.filled = True
+            restaurant_picture = "No Restaurants Found"
+            restaurant_address = "No Restaurants Found"
+            restaurant_name =  "No Restaurants Found"
+            try:
+                result = findARestaurant(r.meal_type, r.location_string)
+                if type(result) == dict:
+                    restaurant_picture = result.get('name')
+                    restaurant_address = result.get('address')
+                    restaurant_name =  result.get('image')
+            except Exception as e:
+                 print e
+            date = MealDate(meal_time = r.meal_time, user_1 = r.user_id , user_2 = proposal.user_proposed_from, restaurant_picture = restaurant_picture,restaurant_address = restaurant_address, restaurant_name= restaurant_name )
+            session.add(date)
+            session.add(proposal)
+            session.add(r)
+            session.commit()
+        else:
             session.delete(proposal)
             session.commit()
             return  jsonify( { 'result': True } )
-        proposal.filled = True
-        r.filled = True
-        restaurant_picture = ""
-        restaurant_address = ""
-        restaurant_name =  ""
-        try:
-            result = findARestaurant(r.meal_type, r.location_string)
-            if type(result) == dict:
-                restaurant_picture = result.get('name')
-                restaurant_address = result.get('address')
-                restaurant_name =  result.get('image')
-        except Exception as e:
-             print e
-        date = MealDate(meal_time = r.meal_time, user_1 = r.user_id , user_2 = proposal.user_proposed_from, restaurant_picture = restaurant_picture,restaurant_address = restaurant_address, restaurant_name= restaurant_name )
-        session.add(date)
-        session.add(proposal)
-        session.add(r)
-        session.commit()
     return  jsonify( { 'result': True } )
 
 
