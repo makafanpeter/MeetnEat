@@ -326,7 +326,7 @@ def new_date():
         abort(400)
     errors = MealDate.validate(request.json)
     if len(errors) == 0:
-        proposal_id = request.json.get('proposal_id')
+        proposalsa_id = request.json.get('proposal_id')
         accept_proposal = request.json.get('accept_proposal')
         proposal = session.query(Proposal).filter_by(id = proposal_id).first()
         if proposal is None:
@@ -334,7 +334,7 @@ def new_date():
         r = proposal.request
         if r.filled:
             return  jsonify( { 'result': False } )
-        if not accept_proposal:
+        if accept_proposal:
             proposal.filled = True
             r.filled = True
             restaurant_picture = "No Restaurants Found"
