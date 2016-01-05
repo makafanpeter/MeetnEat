@@ -79,7 +79,7 @@ class Request(Base):
     __tablename__ = 'request'
     id = Column(Integer, primary_key = True)
     filled = Column(Boolean, default= False)
-    meal_time = Column(DateTime)
+    meal_time = Column(String)
     longitude = Column(Float)
     latitude = Column(Float)
     location_string = Column(String(100))
@@ -165,7 +165,7 @@ class Proposal(Base):
 class MealDate(Base):
     __tablename__ = "mealdate"
     id = Column(Integer, primary_key = True)
-    meal_time = Column(DateTime)
+    meal_time = Column(String)
     restaurant_picture = Column(String(100))
     restaurant_address = Column(String(120))
     restaurant_name =  Column(String(100))

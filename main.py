@@ -12,6 +12,7 @@ auth = HTTPBasicAuth()
 
 import random,string
 from  datetime import datetime, time
+from findARestaurant import findARestaurant
 
 engine = create_engine('sqlite:///meatneat.db')
 
@@ -197,7 +198,7 @@ def new_request():
         longitude = request.json.get('longitude')
         latitude = request.json.get('latitude')
         location_string = request.json.get('location_string')
-        meal_time = parse_date(request.json.get('meal_time'))
+        meal_time = request.json.get('meal_time')
         r = Request(user_id = user.id,meal_type = meal_type, longitude = longitude, latitude = latitude, location_string = location_string, meal_time = meal_time)
         session.add(r)
         session.commit()
@@ -333,18 +334,30 @@ def new_date():
         r = proposal.request
         if r.filled:
             return  jsonify( { 'result': False } )
-        if accept_proposal:
-            proposal.filled = True
-            r.filled = True
-            restaurant_picture = ""
-            restaurant_address = ""
-            restaurant_name =  ""
-            date = MealDate(meal_time = r.meal_time, user_1 = r.user_id , user_2 = proposal.user_proposed_from, restaurant_picture = restaurant_picture,restaurant_address = restaurant_address, restaurant_name= restaurant_name )
-            session.add(date)
-            session.add(proposal)
-            session.add(r)
+        if not accept_proposal:
+            session.delete(proposal)
             session.commit()
-        return  jsonify( { 'result': True } )
+            return  jsonify( { 'result': True } )
+        proposal.filled = True
+        r.filled = True
+        restaurant_picture = ""
+        restaurant_address = ""
+        restaurant_name =  ""
+        try:
+            result = findARestaurant(r.meal_type, r.location_string)
+            if type(result) == dict:
+                restaurant_picture = result.get('name')
+                restaurant_address = result.get('address')
+                restaurant_name =  result.get('image')
+        except Exception as e:
+             print e
+        date = MealDate(meal_time = r.meal_time, user_1 = r.user_id , user_2 = proposal.user_proposed_from, restaurant_picture = restaurant_picture,restaurant_address = restaurant_address, restaurant_name= restaurant_name )
+        session.add(date)
+        session.add(proposal)
+        session.add(r)
+        session.commit()
+    return  jsonify( { 'result': True } )
+
 
     return jsonify({"message": "The request is invalid."},errors = [error for error in errors])  ,400
 
@@ -389,12 +402,6 @@ def delete_date(id):
     return  jsonify( { 'result': True } )
 
 
-def parse_date(date):
-    try:
-        date = datetime.strptime(date, "%d/%m/%y %H:%M")
-    except Exception as e:
-        date = datetime.utcnow()
-    return date
 
 if __name__ == '__main__':
     app.debug = True
