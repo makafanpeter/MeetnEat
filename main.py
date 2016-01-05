@@ -11,6 +11,7 @@ from flask.ext.httpauth import HTTPBasicAuth
 auth = HTTPBasicAuth()
 
 import random,string
+from  datetime import datetime, time
 
 engine = create_engine('sqlite:///meatneat.db')
 
@@ -67,6 +68,10 @@ def not_found(error):
 @app.errorhandler(404)
 def not_found(error):
     return make_response(jsonify( { 'error': 'Not found' } ), 404)
+
+@app.errorhandler(403)
+def notauthorized(error):
+    return make_response(jsonify( { 'error': 'Unauthorized access' } ), 403)
 
 
 
@@ -170,13 +175,35 @@ def get_user(id):
 @auth.login_required
 def get_requests():
     user = g.user
-    requests = session.query(Request).filter_by(user.id != User.user_id).all()
+    requests = session.query(Request).filter(user.id != Request.user_id).all()
+    return jsonify(requests = [r.serialize for r in requests])
+
+@app.route('/api/v1/requests/me', methods=['GET'])
+@auth.login_required
+def get_my_requests():
+    user = g.user
+    requests = session.query(Request).filter(user.id == Request.user_id).all()
     return jsonify(requests = [r.serialize for r in requests])
 
 @app.route('/api/v1/requests', methods=['POST'])
 @auth.login_required
 def new_request():
-    pass
+    user = g.user
+    if not request.json:
+        abort(400)
+    errors = Request.validate(request.json)
+    if len(errors) == 0:
+        meal_type = request.json.get('meal_type')
+        longitude = request.json.get('longitude')
+        latitude = request.json.get('latitude')
+        location_string = request.json.get('location_string')
+        meal_time = parse_date(request.json.get('meal_time'))
+        r = Request(user_id = user.id,meal_type = meal_type, longitude = longitude, latitude = latitude, location_string = location_string, meal_time = meal_time)
+        session.add(r)
+        session.commit()
+        return  jsonify( { 'result': True } ),201
+    return jsonify({"message": "The request is invalid."},errors = [error for error in errors])  ,400
+
 
 
 @app.route('/api/v1/requests/<int:id>', methods=['GET'])
@@ -191,7 +218,14 @@ def get_request(id):
 @app.route('/api/v1/requests/<int:id>', methods=['PUT'])
 @auth.login_required
 def update_request(id):
-    pass
+    user = g.user
+    if not request.json:
+        abort(400)
+    errors = Request.validate(request.json)
+    if len(errors) == 0:
+        return  jsonify( { 'result': True } )
+
+    return jsonify({"message": "The request is invalid."},errors = [error for error in errors])  ,400
 
 @app.route('/api/v1/requests/<int:id>', methods=['DELETE'])
 @auth.login_required
@@ -210,13 +244,36 @@ def delete_request(id):
 @auth.login_required
 def get_proposals():
     user = g.user
-    proposals = session.query(Proposal).filter(or_(Proposal.user_proposed_to == user.id, Proposal.user_proposed_from == user.id)).all()
-    return jsonify(requests = [proposal.serialize for proposal in proposals])
+    proposals = session.query(Proposal).filter(Proposal.user_proposed_to == user.id).all()
+    return jsonify(proposals = [proposal.serialize for proposal in proposals])
+
+@app.route('/api/v1/proposals/me', methods=['GET'])
+@auth.login_required
+def get_my_proposals():
+    user = g.user
+    proposals = session.query(Proposal).filter(Proposal.user_proposed_from == user.id).all()
+    return jsonify(proposals = [proposal.serialize for proposal in proposals])
+
 
 @app.route('/api/v1/proposals', methods=['POST'])
 @auth.login_required
 def new_proposal():
-    pass
+    user = g.user
+    if not request.json:
+        abort(400)
+    errors = Proposal.validate(request.json)
+    if len(errors) == 0:
+        request_id = request.json.get('request_id')
+        r = session.query(Request).filter_by(id = request_id).first()
+        if r is None:
+            return jsonify({"message": "The request is invalid."},errors = [dict({"request_id":"Request does not exist"})])  ,400
+        if user.id == r.user_id:
+            abort(403)
+        proposal = Proposal(user_proposed_from = user.id, user_proposed_to = r.user_id, request_id = r.id  )
+        session.add(proposal)
+        session.commit()
+        return  jsonify( { 'result': True } )
+    return jsonify({"message": "The request is invalid."},errors = [error for error in errors])  ,400
 
 @app.route('/api/v1/proposals/<int:id>', methods=['GET'])
 @auth.login_required
@@ -232,7 +289,13 @@ def get_proposal(id):
 @app.route('/api/v1/proposals/<int:id>', methods=['PUT'])
 @auth.login_required
 def update_proposal(id):
-    pass
+    user = g.user
+    if not request.json:
+        abort(400)
+    errors = Proposal.validate(request.json)
+    if len(errors) == 0:
+        return  jsonify( { 'result': True } )
+    return jsonify({"message": "The request is invalid."},errors = [error for error in errors])  ,400
 
 @app.route('/api/v1/proposals/<int:id>', methods=['DELETE'])
 @auth.login_required
@@ -257,7 +320,33 @@ def get_dates():
 @app.route('/api/v1/dates', methods=['POST'])
 @auth.login_required
 def new_date():
-    pass
+    user = g.user
+    if not request.json:
+        abort(400)
+    errors = MealDate.validate(request.json)
+    if len(errors) == 0:
+        proposal_id = request.json.get('proposal_id')
+        accept_proposal = request.json.get('accept_proposal')
+        proposal = session.query(Proposal).filter_by(id = proposal_id).first()
+        if proposal is None:
+            abort(404)
+        r = proposal.request
+        if r.filled:
+            return  jsonify( { 'result': False } )
+        if accept_proposal:
+            proposal.filled = True
+            r.filled = True
+            restaurant_picture = ""
+            restaurant_address = ""
+            restaurant_name =  ""
+            date = MealDate(meal_time = r.meal_time, user_1 = r.user_id , user_2 = proposal.user_proposed_from, restaurant_picture = restaurant_picture,restaurant_address = restaurant_address, restaurant_name= restaurant_name )
+            session.add(date)
+            session.add(proposal)
+            session.add(r)
+            session.commit()
+        return  jsonify( { 'result': True } )
+
+    return jsonify({"message": "The request is invalid."},errors = [error for error in errors])  ,400
 
 @app.route('/api/v1/dates/<int:id>', methods=['GET'])
 @auth.login_required
@@ -272,8 +361,20 @@ def get_date(id):
 
 @app.route('/api/v1/dates/<int:id>', methods=['PUT'])
 @auth.login_required
-def update_date():
-    pass
+def update_date(id):
+    user = g.user
+    if not request.json:
+        abort(400)
+    date = session.query(MealDate).filter_by(id = id).first()
+    if data is None:
+        abort(404)
+    errors = MealDate.validate(request.json)
+    if len(errors) == 0:
+        return  jsonify( { 'result': True } )
+
+    return jsonify({"message": "The request is invalid."},errors = [error for error in errors])  ,400
+
+
 
 @app.route('/api/v1/dates/<int:id>', methods=['DELETE'])
 @auth.login_required
@@ -287,6 +388,13 @@ def delete_date(id):
     session.commit()
     return  jsonify( { 'result': True } )
 
+
+def parse_date(date):
+    try:
+        date = datetime.strptime(date, "%d/%m/%y %H:%M")
+    except Exception as e:
+        date = datetime.utcnow()
+    return date
 
 if __name__ == '__main__':
     app.debug = True

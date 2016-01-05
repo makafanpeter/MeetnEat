@@ -82,7 +82,7 @@ class Request(Base):
     meal_time = Column(DateTime)
     longitude = Column(Float)
     latitude = Column(Float)
-    location_string =(String(100))
+    location_string = Column(String(100))
     meal_type = Column(String(100))
     user_id =  Column(Integer,ForeignKey('user.id'))
     user = relationship(User)
@@ -98,8 +98,28 @@ class Request(Base):
          "longitude": self.longitude,
          "latitude": self.latitude,
          "location_string": self.location_string,
-         "meal_type": self.meal_type,
+         "meal_time": self.meal_time,
          }
+
+    @staticmethod
+    def validate(data):
+        errors = []
+        required_fields = ['meal_type','longitude', 'latitude', 'location_string', 'meal_time']
+        if type(data) != dict:
+            error = dict({"Missing required parameters":" ".format(', '.join(required_fields))})
+            errors.append(error)
+        else:
+            for value in required_fields:
+                if not value in data:
+                    error = dict({ value: "Required" })
+                    errors.append(error)
+                else:
+                    if not data[value]:
+                        error = dict({ value: "Required" })
+                        errors.append(error)
+        return errors
+
+
 
 
 class Proposal(Base):
@@ -124,6 +144,23 @@ class Proposal(Base):
         "user_proposed_from": self.user_proposed_from,
         }
 
+    @staticmethod
+    def validate(data):
+        errors = []
+        required_fields = ['request_id']
+        if type(data) != dict:
+            error = dict({"Missing required parameters":" ".format(', '.join(required_fields))})
+            errors.append(error)
+        else:
+            for value in required_fields:
+                if not value in data:
+                    error = dict({ value: "Required" })
+                    errors.append(error)
+                else:
+                    if not data[value]:
+                        error = dict({ value: "Required" })
+                        errors.append(error)
+        return errors
 
 class MealDate(Base):
     __tablename__ = "mealdate"
@@ -148,7 +185,23 @@ class MealDate(Base):
         "user_2": self.user_2
         }
 
-
+    @staticmethod
+    def validate(data):
+        errors = []
+        required_fields = ['accept_proposal', 'proposal_id']
+        if type(data) != dict:
+            error = dict({"Missing required parameters":" ".format(', '.join(required_fields))})
+            errors.append(error)
+        else:
+            for value in required_fields:
+                if not value in data:
+                    error = dict({ value: "Required" })
+                    errors.append(error)
+                else:
+                    if not data[value]:
+                        error = dict({ value: "Required" })
+                        errors.append(error)
+        return errors
 
 
 
