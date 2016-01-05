@@ -353,11 +353,11 @@ def new_date():
             session.add(proposal)
             session.add(r)
             session.commit()
+            return  jsonify( { 'result': True } )
         else:
             session.delete(proposal)
             session.commit()
             return  jsonify( { 'result': True } )
-    return  jsonify( { 'result': True } )
 
 
     return jsonify({"message": "The request is invalid."},errors = [error for error in errors])  ,400
